@@ -14,6 +14,8 @@ import (
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/debug"
+
+	"github.com/restic/restic/internal/backend/local"
 )
 
 var (
@@ -58,6 +60,10 @@ var (
 // createMasterKey creates a new master key in the given backend and encrypts
 // it with the password.
 func createMasterKey(s *Repository, password string) (*Key, error) {
+	debug.Log("create a master key for %v", s.be)
+
+	CreateLocalKeyFolderIfNecessary()
+
 	return AddKey(context.TODO(), s, password, nil)
 }
 
@@ -136,7 +142,8 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 	defer cancel()
 
 	// try at most maxKeys keys in repo
-	err = s.Backend().List(listCtx, restic.KeyFile, func(fi restic.FileInfo) error {
+	keyBe := GetKeyBackend(ctx, s)
+	err = keyBe.List(listCtx, restic.KeyFile, func(fi restic.FileInfo) error {
 		if maxKeys > 0 && checked > maxKeys {
 			return ErrMaxKeysReached
 		}
@@ -184,7 +191,9 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 // LoadKey loads a key from the backend.
 func LoadKey(ctx context.Context, s *Repository, name string) (k *Key, err error) {
 	h := restic.Handle{Type: restic.KeyFile, Name: name}
-	data, err := backend.LoadAll(ctx, nil, s.be, h)
+
+	keyBe := GetKeyBackend(ctx, s)
+	data, err := backend.LoadAll(ctx, nil, keyBe, h)
 	if err != nil {
 		return nil, err
 	}
@@ -274,7 +283,8 @@ func AddKey(ctx context.Context, s *Repository, password string, template *crypt
 		Name: restic.Hash(buf).String(),
 	}
 
-	err = s.be.Save(ctx, h, restic.NewByteReader(buf))
+	keyBe := GetKeyBackend(ctx, s)
+	err = keyBe.Save(ctx, h, restic.NewByteReader(buf))
 	if err != nil {
 		return nil, err
 	}
@@ -299,4 +309,64 @@ func (k Key) Name() string {
 // Valid tests whether the mac and encryption keys are valid (i.e. not zero)
 func (k *Key) Valid() bool {
 	return k.user.Valid() && k.master.Valid()
+}
+
+// if the env-variable is set, the keys are received from the "local"-repository behind the eenv-var.
+// if the folder not exists, the program will exit with an error-code
+// it fakes a local_backend, open it and returns it
+// it the env-var is not set, the backend from the "remote"-repository is returned
+func GetKeyBackend(ctx context.Context, s *Repository) restic.Backend {
+	var be restic.Backend
+
+	if path := os.Getenv("RESTIC_KEYSPATH"); path != "" {
+		debug.Log("RESTIC_KEYSPATH used with path %s\n", path)
+
+		kconfig := local.Config {Path: path, Layout: "default"}
+		if _, err := os.Stat(kconfig.Path); err != nil {
+			fmt.Fprintf(os.Stderr, "Can't find local folder on path %s (%v)\n", kconfig.Path, err)
+			os.Exit(1);
+		}
+
+		var err error
+		be, err = local.Open(kconfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Can't open %s (%v)\n", kconfig.Path, err)
+			os.Exit(1);
+		}
+	} else {
+		be = s.Backend()
+	}
+
+	debug.Log("Use key backend %v", be)
+
+	return be
+}
+
+// retrieves the given repository or in case of "local"-repository a
+// fake local repository
+// this func should only be use in special cases, because it's a faked and this can 
+// occure problems in further processing
+func GetKeyRepository(ctx context.Context, s *Repository) *Repository {
+	if path := os.Getenv("RESTIC_KEYSPATH"); path != "" {
+		return New(GetKeyBackend(ctx, s));
+	} else {
+		return s
+	}
+}
+
+// if local keys are required, here the folder was created
+// only be done by the creation of a master-key = init of a repository
+func CreateLocalKeyFolderIfNecessary() {
+	if path := os.Getenv("RESTIC_KEYSPATH"); path != "" {
+		debug.Log("RESTIC_KEYSPATH used with path %s\n", path)
+
+		if _, err := os.Stat(path); err != nil {
+			debug.Log("creating new local folder %s\n", path)
+			mkdirErr := os.MkdirAll(path, backend.Modes.Dir)
+			if mkdirErr != nil {
+				fmt.Fprintf(os.Stderr, "Can't create local folder on path %s (%v)\n", path, mkdirErr)
+				os.Exit(1);
+			}
+		}
+	}
 }

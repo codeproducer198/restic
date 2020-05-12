@@ -47,7 +47,8 @@ func listKeys(ctx context.Context, s *repository.Repository, gopts GlobalOptions
 
 	var keys []keyInfo
 
-	err := s.List(ctx, restic.KeyFile, func(id restic.ID, size int64) error {
+	keyRe := repository.GetKeyRepository(ctx, s)
+	err := keyRe.List(ctx, restic.KeyFile, func(id restic.ID, size int64) error {
 		k, err := repository.LoadKey(ctx, s, id.String())
 		if err != nil {
 			Warnf("LoadKey() failed: %v\n", err)
@@ -131,7 +132,9 @@ func deleteKey(ctx context.Context, repo *repository.Repository, name string) er
 	}
 
 	h := restic.Handle{Type: restic.KeyFile, Name: name}
-	err := repo.Backend().Remove(ctx, h)
+
+	keyBe := repository.GetKeyBackend(ctx, repo)
+	err := keyBe.Remove(ctx, h)
 	if err != nil {
 		return err
 	}
@@ -152,7 +155,9 @@ func changePassword(gopts GlobalOptions, repo *repository.Repository) error {
 	}
 
 	h := restic.Handle{Type: restic.KeyFile, Name: repo.KeyName()}
-	err = repo.Backend().Remove(gopts.ctx, h)
+
+	keyBe := repository.GetKeyBackend(gopts.ctx, repo)
+	err = keyBe.Remove(gopts.ctx, h)
 	if err != nil {
 		return err
 	}
@@ -199,7 +204,8 @@ func runKey(gopts GlobalOptions, args []string) error {
 			return err
 		}
 
-		id, err := restic.Find(repo.Backend(), restic.KeyFile, args[1])
+		keyBe := repository.GetKeyBackend(ctx, repo)
+		id, err := restic.Find(keyBe, restic.KeyFile, args[1])
 		if err != nil {
 			return err
 		}
