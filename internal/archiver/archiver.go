@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sort"
 	"time"
+	"path/filepath"
 
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
@@ -345,6 +346,28 @@ func (arch *Archiver) Save(ctx context.Context, snPath, target string, previous 
 		}
 		return FutureNode{}, true, nil
 	}
+
+	// #TSC support of resolve sym-links >>>>
+	if fi.Mode() & os.ModeSymlink != 0 && os.Getenv("RESTIC_FOLLOWSLINK") == "Y" {
+		// retrieve the target of the link
+		targetLink, err := filepath.EvalSymlinks(target)
+		debug.Log("%v is symlink -> %v", target, targetLink)
+		if err != nil {
+			debug.Log("Resolve symlink %v returned error: %v", target, err)
+			return FutureNode{}, false, err
+		}
+
+		// get file-info of the target
+		fiLink, err := arch.FS.Lstat(targetLink)
+		if err != nil {
+			debug.Log("Lstat for symlink %v returned error: %v", targetLink, err)
+			return FutureNode{}, false, err
+		}
+
+		// set sym-link folder and info to the "original" vars
+		target = targetLink
+		fi = fiLink
+	} // <<<<<< sym-link
 
 	switch {
 	case fs.IsRegularFile(fi):
