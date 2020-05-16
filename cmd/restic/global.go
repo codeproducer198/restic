@@ -361,7 +361,9 @@ func OpenRepository(opts GlobalOptions) (*repository.Repository, error) {
 	}
 
 	be = backend.NewRetryBackend(be, 10, func(msg string, err error, d time.Duration) {
-		Warnf("%v returned error, retrying after %v: %v\n", msg, d, err)
+		// #TSC add time to error-log
+		currentTime := time.Now()
+		Warnf("%v: %v returned error, retrying after %v: %v\n", currentTime.Format("2006.01.02 15:04:05"), msg, d, err)
 	})
 
 	s := repository.New(be)
