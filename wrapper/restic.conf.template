@@ -1,0 +1,12 @@
+restic_binary=../restic_linux_amd64
+
+#development
+RESTIC_KEYSPATH="./LOCALCONF"
+RESTIC_CACHE_DIR="cachedir"
+
+# common configuration
+cloud_user="<username>"
+cloud_url="sftp.XXX.com"
+cloud_ssh_key="$RESTIC_KEYSPATH/ssh-key.id"
+
+backup_target_folder="backup_test_on_cloud"
