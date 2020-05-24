@@ -1,2 +1,7 @@
+/log.txt
+/restic_linux_*
 /restic
 /.vagrant
+/wrapper/LOCALCONF
+/wrapper/restic.conf
+/wrapper/cachedir
