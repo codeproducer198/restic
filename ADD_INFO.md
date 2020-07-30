@@ -22,7 +22,7 @@ GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w" -o restic_linux_
 
 Build with debug-log
 `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w" -tags selfupdate -tags debug -o restic_linux_amd64 ./cmd/restic`
-The logfile is witten to `log.txt`
+Set env `export DEBUG_LOG=log.txt` and the logfile is witten to `log.txt`
 
 **Please set the version number is showing with the `./restic_linux_amd64 version` in the file `cmd/restic/global.go` to the new version.**
 
