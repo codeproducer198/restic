@@ -4,6 +4,9 @@
 # wrapper script for restic
 #
 
+# exit on any error
+set -e
+
 # first parameter is the profile/repository
 PROFILE="$1"
 
@@ -20,25 +23,23 @@ CONFIG=$SCRIPT_PATH/restic.conf
 
 echo "Using profile $PROFILE and config $CONFIG"
 
+# load wrapper config
 source $CONFIG
 
 # TSC feature configuration
 export RESTIC_KEYSPATH
 export RESTIC_FOLLOWSLINK="Y"
 
-# we want to set the SSH-key ID via "-i" and not via ".ssh"-folder, so we cant use the 
-#   RESTIC_REPOSITORY="sftp:$cloud_user@sftp.hidrive.strato.com:/users/$cloud_user/restic/backup_full_data"
-# set here no user - its set in the ssh_cmd
-export RESTIC_REPOSITORY="sftp::/users/$cloud_user/${backup_target_folder}/$PROFILE"
+# we use rlone instead of internal sftp. rclone performce better than sftp
+export RESTIC_REPOSITORY="rclone:cloud:/users/$cloud_user/${backup_target_folder}/$PROFILE"
+
 export RESTIC_PASSWORD_FILE="$RESTIC_KEYSPATH/pw_$PROFILE.txt"
 export RESTIC_CACHE_DIR
-
-# use SSH with SSH-key file
-ssh_cmd="ssh ${cloud_user}@${cloud_url} -i ${cloud_ssh_key} -s sftp"
 
 # remove first parameter (my repository) - now the rest parameters are used by restric
 shift
 
+# additional ops for restic if debugging is enabled
 adops=""
 if [ $DEBUG == "1" ]; then
 	adops="-v"
@@ -52,11 +53,26 @@ do
 	fi
 done
 
+# build the executed cmd
+cmd="$SCRIPT_PATH/$restic_binary -o rclone.program='"${rcone_binary}"' $@ $adops"
+
+# some debugging
 if [ $DEBUG == "1" ]; then
+	echo "WRAPPER-CONFIG:    $CONFIG"
 	echo "RESTIC_KEYSPATH:   $RESTIC_KEYSPATH"
 	echo "RESTIC_REPOSITORY: $RESTIC_REPOSITORY"
 	echo "RESTIC_CACHE_DIR:  $RESTIC_CACHE_DIR"
-	echo "Execute:           $restic_binary -o sftp.command='"$ssh_cmd"' "$@" $adops"
+	echo "RCLONE_CONFIG:     $RCLONE_CONFIG"
+	echo "Execute:           $cmd"
 fi
 
-$SCRIPT_PATH/$restic_binary -o sftp.command="$ssh_cmd" "$@" $adops
+# export rclone env from restic.conf
+export RCLONE_CONFIG RCLONE_RETRIES RCLONE_RETRIES_SLEEP
+
+# execute cmd
+if [ $DEBUG == "1" ]; then
+	time $cmd
+else
+	$cmd
+fi
+
