@@ -5,3 +5,5 @@
 /wrapper/LOCALCONF
 /wrapper/restic.conf
 /wrapper/cachedir
+/wrapper/log.txt
+/wrapper/rclone
