@@ -45,10 +45,13 @@ Inspect
 	./restic_linux_amd64 -r /home/lxstore/tmp/test5 cat masterkey
 	./restic_linux_amd64 -r /home/lxstore/tmp/test5 cat snapshot 6f873568
 
-Maintaince
+Maintaince (löschen aller Snapshots bis auf einen und den dann gezielt löschen)
 
 	./restic_linux_amd64 -r /home/lxstore/tmp/test5 forget --prune --keep-last 1
 	./restic_linux_amd64 -r /home/lxstore/tmp/test5 forget --prune <snapshot-id>
+
+Schneller geht es, wenn man direkt die Cloud Verzeichnisse lösche. Dabei kann alles unter `data`, `index`, `locks` und `snapshots` gelöscht werden. Nicht
+aber diese Basisverzeichnisse.
 
 ## Wrapper
 
